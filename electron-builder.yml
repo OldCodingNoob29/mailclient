@@ -1,0 +1,46 @@
+appId: de.tim.mailclient.app
+productName: Mailclient
+copyright: Copyright © 2026 Timotheus Stotz
+
+directories:
+  output: dist
+  buildResources: build
+
+files:
+  - out/**
+  - resources/**
+  - package.json
+  - '!**/*.map'
+
+asarUnpack:
+  - resources/**
+
+win:
+  # nsis und portable brauchen Wine, wenn unter Linux gebaut wird. Der
+  # Standard ist deshalb zip; das laeuft auf beiden Systemen durch. Auf
+  # Windows selbst liefert `npm run dist:win:installer` den Installer.
+  target:
+    - target: zip
+      arch: [x64]
+  artifactName: ${productName}-${version}-windows-${arch}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Mailclient
+  deleteAppDataOnUninstall: false
+
+portable:
+  artifactName: ${productName}-${version}-portable.${ext}
+
+linux:
+  target: [AppImage]
+  category: Network
+  maintainer: Timotheus Stotz
+
+npmRebuild: false
+electronDownload:
+  cache: .electron-cache

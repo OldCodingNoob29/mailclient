@@ -1,0 +1,42 @@
+{
+  "name": "mailclient",
+  "version": "0.1.0",
+  "description": "A calm, ad-free desktop mail client for several accounts",
+  "author": "Timotheus Stotz",
+  "license": "MIT",
+  "private": true,
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "start": "electron-vite preview",
+    "build": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json && electron-vite build",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
+    "test:e2e": "node tests/e2e.mjs",
+    "dist:win": "npm run build && electron-builder --win --x64",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "postinstall": "electron-builder install-app-deps",
+    "dist:win:installer": "npm run build && electron-builder --win nsis portable --x64"
+  },
+  "dependencies": {
+    "imapflow": "^1.7.8",
+    "mailparser": "^3.9.22",
+    "nodemailer": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/mailparser": "^3.4.6",
+    "@types/node": "^26.4.1",
+    "@types/nodemailer": "^8.0.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.7",
+    "@vitejs/plugin-react": "^5.2.0",
+    "dompurify": "^3.4.15",
+    "electron": "^44.2.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^5.0.0",
+    "playwright-core": "^1.63.0",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "typescript": "^7.0.2",
+    "vite": "^7.3.6"
+  }
+}

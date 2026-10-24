@@ -1,0 +1,1947 @@
+/*
+  Gestaltungsprinzip
+  ------------------
+  Die App hat vier Spalten: Kontenschiene, Ordner, Nachrichtenliste, Lesebereich.
+  Farbe gehoert den Konten, nicht der Oberflaeche - das Chrome bleibt bewusst
+  grau, damit die farbigen Kontenmarker sofort lesbar sind. Der Lesebereich ist
+  in beiden Themes ein weisses Blatt: HTML-Mails sind fuer Weiss gebaut, und auf
+  dunklem Grund wuerden sie auseinanderfallen.
+*/
+
+:root {
+  --paper: #f7f8fa;
+  --surface: #ffffff;
+  --surface-2: #eff1f4;
+  --surface-3: #e7eaef;
+  --line: #e2e5ea;
+  --line-strong: #cdd3db;
+  --ink: #1a1d23;
+  --ink-2: #4a515c;
+  --ink-3: #79818e;
+  --accent: #2f5bd0;
+  --accent-soft: #e7eefc;
+  --selected: #e2e8f1;
+  --danger: #c0392f;
+  --success: #1e7a4c;
+  --warn: #a97612;
+  --shadow-sheet: 0 1px 2px rgba(20, 26, 38, 0.06), 0 8px 28px rgba(20, 26, 38, 0.07);
+  --shadow-pop: 0 12px 40px rgba(16, 22, 34, 0.18);
+
+  /* Das Blatt behaelt seine Farbe in beiden Themes. */
+  --sheet: #ffffff;
+  --sheet-ink: #1a1d23;
+
+  --sans: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, Inter,
+    "Helvetica Neue", Arial, sans-serif;
+  --serif: Georgia, "Iowan Old Style", "Palatino Linotype", "Times New Roman", serif;
+  --mono: "Cascadia Mono", "SF Mono", "JetBrains Mono", Consolas, monospace;
+
+  --rail-w: 60px;
+  --folders-w: 212px;
+  --list-w: 384px;
+  --radius: 7px;
+  --radius-lg: 12px;
+}
+
+:root[data-theme='dark'] {
+  --paper: #15181e;
+  --surface: #1c2027;
+  --surface-2: #191d24;
+  --surface-3: #232935;
+  --line: #262c35;
+  --line-strong: #3a424e;
+  --ink: #e6e9ee;
+  --ink-2: #a7afbb;
+  --ink-3: #78818e;
+  --accent: #82a6f0;
+  --accent-soft: #1f2b41;
+  --selected: #262d39;
+  --danger: #e8776c;
+  --success: #4fb383;
+  --warn: #d9ad4e;
+  --shadow-sheet: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 34px rgba(0, 0, 0, 0.34);
+  --shadow-pop: 0 16px 48px rgba(0, 0, 0, 0.55);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--sans);
+  font-size: 13.5px;
+  line-height: 1.45;
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+/* Schmale, unaufdringliche Scrollbalken - die Listen sollen ruhig wirken. */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--line-strong);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ink-3);
+  background-clip: content-box;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ------------------------------------------------------------- Grundgeruest */
+
+.app {
+  display: grid;
+  grid-template-columns: var(--rail-w) var(--folders-w) var(--list-w) minmax(0, 1fr);
+  height: 100%;
+}
+
+.app[data-folders='hidden'] {
+  grid-template-columns: var(--rail-w) 0 var(--list-w) minmax(0, 1fr);
+}
+
+.app[data-preview='bottom'] {
+  grid-template-columns: var(--rail-w) var(--folders-w) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+}
+.app[data-preview='bottom'] .rail,
+.app[data-preview='bottom'] .folders {
+  grid-row: 1 / span 2;
+}
+
+@media (max-width: 1180px) {
+  .app {
+    grid-template-columns: var(--rail-w) 0 var(--list-w) minmax(0, 1fr);
+  }
+  .folders {
+    display: none;
+  }
+}
+
+/* --------------------------------------------------------- Kontenschiene */
+
+.rail {
+  background: var(--surface-2);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/*
+  Jedes Konto ist eine Kachel mit farbiger Kante links. Die Kante ist der
+  Identitaetstraeger: dieselbe Farbe markiert spaeter Nachrichtenzeilen im
+  Sammelposteingang.
+*/
+.rail-tile {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.01em;
+  overflow: hidden;
+}
+
+.rail-tile::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--tile-color, var(--line-strong));
+  transition: inset 120ms ease, width 120ms ease;
+}
+
+.rail-tile:hover {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+
+.rail-tile[aria-pressed='true'] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(20, 26, 38, 0.1);
+}
+
+.rail-tile[aria-pressed='true']::before {
+  top: 0;
+  bottom: 0;
+  width: 4px;
+}
+
+.rail-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 15px;
+  text-align: center;
+}
+
+.rail-tile[data-error='true']::after {
+  content: '';
+  position: absolute;
+  bottom: 3px;
+  right: 4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--danger);
+}
+
+.rail-spacer {
+  flex: 1;
+}
+
+.rail-divider {
+  width: 22px;
+  height: 1px;
+  background: var(--line-strong);
+  flex: 0 0 auto;
+  margin: 2px 0;
+}
+
+/* -------------------------------------------------------------- Ordner */
+
+.folders {
+  background: var(--surface-2);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.folders-head {
+  padding: 14px 14px 8px;
+}
+
+.folders-title {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.008em;
+  margin: 0;
+  color: var(--ink);
+}
+
+.folders-sub {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folders-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 8px 12px;
+}
+
+.folder-group {
+  margin-top: 10px;
+}
+
+.folder-group-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--ink-3);
+  padding: 4px 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.folder-group-label .swatch {
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+
+.folder-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 8px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: var(--ink-2);
+  font-size: 13px;
+}
+
+.folder-item:hover {
+  background: var(--surface-3);
+}
+
+.folder-item[aria-current='true'] {
+  background: var(--selected);
+  color: var(--ink);
+  font-weight: 550;
+}
+
+.folder-item .label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folder-item .count {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-3);
+}
+
+.folder-item[data-unread='true'] .label {
+  color: var(--ink);
+  font-weight: 600;
+}
+.folder-item[data-unread='true'] .count {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.folder-icon {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 auto;
+  opacity: 0.65;
+}
+
+/* ------------------------------------------------------ Nachrichtenliste */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.list-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+/* ------------------------------------------------------------ Abrufknopf */
+
+/*
+  Der Knopf ist selbst die Statusanzeige. Statt einer Blase daneben schiebt er
+  sich nach rechts auf und traegt den Text in sich; das Suchfeld daneben gibt
+  die Breite her und holt sie sich zurueck, sobald die Meldung vorbei ist.
+*/
+.refresh-btn {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  height: 34px;
+  padding: 0 7px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: color 140ms ease, border-color 140ms ease, background-color 140ms ease;
+}
+
+.refresh-btn:hover {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+
+.refresh-btn > svg {
+  flex: 0 0 auto;
+}
+
+.refresh-label {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  line-height: 1;
+  transition: max-width 240ms ease, opacity 180ms ease, padding-left 240ms ease;
+}
+
+.refresh-btn[data-open='true'] .refresh-label {
+  /* Genug fuer "Wird abgerufen"; laengere Serverfehler werden gekuerzt und
+     stehen vollstaendig im Tooltip. */
+  max-width: 148px;
+  opacity: 1;
+  padding-left: 7px;
+}
+
+/* Gelb waehrend des Abrufs, gruen danach, rot wenn etwas schiefging. */
+.refresh-btn[data-tone='busy'] {
+  color: var(--warn);
+  border-color: color-mix(in srgb, var(--warn) 55%, var(--line));
+  background: color-mix(in srgb, var(--warn) 12%, transparent);
+}
+
+.refresh-btn[data-tone='done'] {
+  color: var(--success);
+  border-color: color-mix(in srgb, var(--success) 55%, var(--line));
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+
+.refresh-btn[data-tone='error'] {
+  color: var(--danger);
+  border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .refresh-label {
+    transition: none;
+  }
+}
+
+.search {
+  flex: 1;
+  /* Ohne dies bliebe das Feld auf Inhaltsbreite stehen und der Knopf koennte
+     sich nicht aufschieben. */
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+
+.search:focus-within {
+  border-color: var(--accent);
+  background: var(--surface);
+}
+
+.search input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  font-size: 13px;
+  min-width: 0;
+}
+
+.search input::placeholder {
+  color: var(--ink-3);
+}
+
+.list-scroll {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.row {
+  position: relative;
+  display: block;
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  text-align: left;
+  /* Links eine feste Spalte fuer den Statuspunkt: gelesene und ungelesene
+     Zeilen bleiben dadurch exakt gleich ausgerichtet. */
+  padding: 11px 14px 11px 30px;
+  cursor: pointer;
+  color: var(--ink-2);
+}
+
+/*
+  Der Punkt ist zugleich Anzeige und Schalter: ein Klick darauf wechselt
+  zwischen gelesen und ungelesen, ohne die Nachricht zu oeffnen. Bei gelesenen
+  Zeilen taucht er beim Ueberfahren als leerer Ring auf - so ist zu sehen, dass
+  dort etwas anklickbar ist, ohne dass die Liste im Ruhezustand unruhig wird.
+*/
+.row-dot {
+  position: absolute;
+  left: 11px;
+  top: 14px;
+  width: 9px;
+  height: 9px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+  transition: background-color 90ms ease, box-shadow 90ms ease;
+}
+
+.row[data-unread='true'] .row-dot {
+  background: var(--accent);
+}
+
+.row:hover .row-dot {
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
+}
+
+.row[data-unread='true']:hover .row-dot {
+  box-shadow: none;
+  background: var(--accent);
+}
+
+.row[data-unread='true'] .row-dot:hover {
+  background: var(--ink-3);
+}
+
+.row-dot:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.list[data-density='compact'] .row-dot {
+  top: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row-dot {
+    transition: none;
+  }
+}
+
+/*
+  Die farbige Kante erscheint nur dort, wo sie etwas unterscheidet: in
+  Sammelansichten und Suchergebnissen. In einem einzelnen Kontoordner waere sie
+  reine Dekoration.
+*/
+.row[data-show-account='true']::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--row-color);
+}
+
+.row:hover {
+  background: var(--surface-2);
+}
+
+.row[aria-selected='true'] {
+  background: var(--selected);
+}
+
+.row-top {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.row-sender {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.row-date {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.row-subject {
+  margin-top: 1px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+
+.row-subject .text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  flex: 1;
+}
+
+.row-snippet {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.list[data-density='compact'] .row {
+  padding-top: 7px;
+  padding-bottom: 7px;
+}
+.list[data-density='compact'] .row-snippet {
+  display: none;
+}
+
+/* Ungelesenes traegt Gewicht, nicht Farbe. */
+.row[data-unread='true'] .row-sender {
+  font-weight: 650;
+  color: var(--ink);
+}
+.row[data-unread='true'] .row-subject {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.row-marks {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+  color: var(--ink-3);
+}
+
+.row-marks .flagged {
+  color: #d9a441;
+}
+
+.row-account {
+  font-size: 11px;
+  color: var(--ink-3);
+  padding: 0 5px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  flex: 0 0 auto;
+}
+
+/* --------------------------------------------------------- Lesebereich */
+
+.reader {
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  overflow: hidden;
+  min-width: 0;
+  min-height: 0;
+}
+
+.reader-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+  background: var(--surface);
+  flex-wrap: wrap;
+}
+
+/*
+  min-height: 0 ist hier keine Kosmetik: ohne die Angabe waechst der Flex-Kasten
+  auf die volle Hoehe der Mail, statt zu scrollen - lange Nachrichten waeren
+  dann unten schlicht abgeschnitten.
+*/
+/*
+  align-items ist hier der Unterschied zwischen "lesbar" und "abgeschnitten":
+  in der Voreinstellung streckt der Flex-Kasten das Blatt auf seine eigene
+  Hoehe, statt es wachsen zu lassen. Zusammen mit dem overflow: hidden des
+  Blattes endete die Mail dann am unteren Fensterrand - und weil nichts
+  ueberstand, gab es auch nichts zu scrollen.
+*/
+.reader-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 20px 24px 40px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.sheet {
+  width: 100%;
+  max-width: 860px;
+  background: var(--sheet);
+  color: var(--sheet-ink);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sheet);
+  overflow: hidden;
+  animation: sheet-in 140ms ease-out;
+}
+
+@keyframes sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sheet {
+    animation: none;
+  }
+}
+
+.sheet-head {
+  padding: 26px 32px 18px;
+  border-bottom: 1px solid #e8eaee;
+}
+
+.sheet-subject {
+  margin: 0 0 14px;
+  font-size: 21px;
+  line-height: 1.28;
+  font-weight: 600;
+  letter-spacing: -0.014em;
+  color: var(--sheet-ink);
+}
+
+.sheet-from {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+}
+
+.sheet-from .name {
+  font-weight: 600;
+  color: var(--sheet-ink);
+}
+
+.sheet-from .addr,
+.sheet-meta {
+  color: #6b7280;
+  font-size: 12.5px;
+}
+
+.sheet-meta {
+  margin-top: 4px;
+  line-height: 1.6;
+}
+
+.sheet-date {
+  margin-left: auto;
+  color: #6b7280;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.sheet-body {
+  padding: 0;
+}
+
+.sheet-body iframe {
+  display: block;
+  width: 100%;
+  border: 0;
+  background: #fff;
+}
+
+/* Reiner Text bekommt echte Typografie statt eines Monospace-Kastens. */
+.plain-body {
+  font-family: var(--serif);
+  font-size: 15.5px;
+  line-height: 1.68;
+  color: #23262c;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  max-width: 68ch;
+  padding: 26px 32px 32px;
+}
+
+.plain-body a {
+  color: #1f4fb8;
+}
+
+.remote-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 9px 32px;
+  background: #fdf6e3;
+  border-bottom: 1px solid #f0e5c8;
+  color: #6a5620;
+  font-size: 12.5px;
+}
+
+.remote-actions {
+  display: flex;
+  gap: 14px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+/*
+  Anhaenge sitzen zwischen Kopf und Text. Sie gehoeren zur Nachricht, nicht in
+  ihren Anhang - deshalb eine eigene, ruhige Bank statt eines Anhaengsels.
+*/
+.attachments {
+  padding: 14px 32px 16px;
+  border-bottom: 1px solid #e8eaee;
+  background: #fbfcfd;
+}
+
+.attachments-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #4a515c;
+}
+
+.attachments-head .size {
+  font-weight: 400;
+  color: #8b929d;
+  font-variant-numeric: tabular-nums;
+}
+
+.attachment-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.attachment {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid #dfe2e7;
+  border-radius: var(--radius);
+  background: #ffffff;
+  overflow: hidden;
+  max-width: 300px;
+}
+
+.attachment:hover {
+  border-color: #b9c0ca;
+}
+
+.attachment-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 7px 4px 7px 7px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  color: #23262c;
+}
+
+.attachment-main:hover {
+  background: #f2f4f7;
+}
+
+/* Feste Kachel, damit unterschiedlich grosse Bilder eine ruhige Reihe ergeben. */
+.attachment-thumb {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  border-radius: 5px;
+  background: #eef1f5;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.attachment-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.attachment-ext {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: #6b7280;
+}
+
+.attachment-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.attachment .name {
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment .size {
+  font-size: 11.5px;
+  color: #6b7280;
+  font-variant-numeric: tabular-nums;
+}
+
+.attachment-save {
+  flex: 0 0 auto;
+  width: 34px;
+  border: none;
+  border-left: 1px solid #ebedf0;
+  background: transparent;
+  color: #6b7280;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.attachment-save:hover {
+  background: #eef1f5;
+  color: #23262c;
+}
+
+/* ------------------------------------------------------------- Buttons */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 11px;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.btn:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 550;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--accent);
+  filter: brightness(1.08);
+  color: #fff;
+}
+
+.btn-outline {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.btn-danger {
+  color: var(--danger);
+}
+
+.btn-icon {
+  padding: 6px;
+}
+
+.btn-compose {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: var(--radius);
+  background: var(--accent);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  border: none;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.btn-compose:hover {
+  filter: brightness(1.1);
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* ------------------------------------------------------- Leere Zustaende */
+
+.empty {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 40px;
+  text-align: center;
+}
+
+.empty-inner {
+  max-width: 380px;
+}
+
+.empty h2 {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+}
+
+.empty p {
+  margin: 0 0 18px;
+  color: var(--ink-3);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+/* -------------------------------------------------------------- Dialoge */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(12, 16, 24, 0.45);
+  display: grid;
+  place-items: center;
+  padding: 28px;
+  z-index: 50;
+}
+
+.dialog {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  width: min(700px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line);
+}
+
+.dialog-wide {
+  width: min(920px, 100%);
+  height: min(760px, 100%);
+}
+
+.dialog-head {
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dialog-head h2 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.dialog-body {
+  padding: 20px 22px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.dialog-foot {
+  padding: 14px 22px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-2);
+}
+
+/* --------------------------------------------------------- Formulare */
+
+.field {
+  margin-bottom: 14px;
+}
+
+.field label {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 550;
+  color: var(--ink-2);
+  margin-bottom: 5px;
+}
+
+.field .hint {
+  margin-top: 5px;
+  font-size: 12px;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
+.input,
+.select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  outline: none;
+}
+
+.input:focus,
+.select:focus {
+  border-color: var(--accent);
+}
+
+.input::placeholder {
+  color: var(--ink-3);
+}
+
+.row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.row-3 {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 12px;
+}
+
+.check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 13px;
+  color: var(--ink-2);
+  cursor: pointer;
+  padding: 5px 0;
+}
+
+.check input {
+  margin-top: 2px;
+}
+
+.swatches {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.swatch-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius);
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+
+.swatch-btn[aria-pressed='true'] {
+  border-color: var(--ink);
+}
+
+.notice {
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  font-size: 12.5px;
+  line-height: 1.55;
+  margin-bottom: 14px;
+}
+
+.notice-info {
+  background: var(--accent-soft);
+  color: var(--ink-2);
+}
+
+.notice-error {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
+
+.notice-ok {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+  color: var(--success);
+}
+
+.link-btn {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  font-size: inherit;
+}
+
+/* ------------------------------------------------------------ Verfassen */
+
+.compose-fields {
+  border-bottom: 1px solid var(--line);
+}
+
+.compose-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.compose-line label {
+  width: 62px;
+  flex: 0 0 auto;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
+.compose-line input,
+.compose-line select {
+  flex: 1;
+  border: none;
+  background: transparent;
+  outline: none;
+  min-width: 0;
+  font-size: 13.5px;
+}
+
+.compose-editor {
+  flex: 1;
+  overflow-y: auto;
+  padding: 18px 22px;
+  outline: none;
+  font-size: 14px;
+  line-height: 1.6;
+  min-height: 220px;
+}
+
+.compose-editor blockquote {
+  margin: 12px 0;
+  padding-left: 14px;
+  border-left: 2px solid var(--line-strong);
+  color: var(--ink-3);
+}
+
+.compose-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  padding: 10px 22px;
+  border-top: 1px solid var(--line);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  font-size: 12px;
+  background: var(--surface-2);
+}
+
+.chip button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--ink-3);
+  padding: 0;
+  line-height: 1;
+}
+
+/* --------------------------------------------------- Adressvorschlaege */
+
+.address-box {
+  position: relative;
+  flex: 1;
+  display: flex;
+  min-width: 0;
+}
+
+.address-box input {
+  flex: 1;
+  min-width: 0;
+}
+
+.address-suggestions {
+  position: absolute;
+  top: calc(100% + 3px);
+  left: 0;
+  right: 0;
+  z-index: 40;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-pop);
+}
+
+.address-suggestions li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 9px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.address-suggestions li[data-active='true'] {
+  background: var(--selected);
+}
+
+.address-suggestions .name {
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.address-suggestions .addr {
+  color: var(--ink-3);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Wem du selbst geschrieben hast, ist der wahrscheinlichere Empfaenger. */
+.address-suggestions .mark {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/* ------------------------------------------------------- Einstellungen */
+
+.section-title {
+  margin: 22px 0 10px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.check-hint {
+  display: inline-block;
+  margin-top: 2px;
+  color: var(--ink-3);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.domain-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.domain {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 6px 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.domain button {
+  border: none;
+  background: none;
+  padding: 0 2px;
+  line-height: 1;
+  font-size: 15px;
+  color: var(--ink-3);
+  cursor: pointer;
+}
+
+.domain button:hover {
+  color: var(--danger);
+}
+
+/* ------------------------------------------------------------- Diverses */
+
+/* Unterhaltungen: Zaehler in der Liste, Verlauf ueber dem Blatt. */
+.row-count {
+  flex: 0 0 auto;
+  font-size: 11px;
+  color: var(--ink-2);
+  padding: 0 6px;
+  border-radius: 9px;
+  background: var(--surface-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.row-snooze {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.row-snooze[data-over='true'] {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* Ein Auswahlfeld richtet sich nach seinem laengsten Eintrag - in der Leiste waere das zu breit. */
+.reader-bar select.btn {
+  max-width: 150px;
+}
+
+/* Verlauf und Blatt stehen untereinander; der Lesebereich selbst legt nebeneinander. */
+.reader-stack {
+  width: 100%;
+  max-width: 860px;
+  display: flex;
+  flex-direction: column;
+}
+
+.thread {
+  margin: 0 0 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  overflow: hidden;
+}
+.thread-head {
+  padding: 7px 12px;
+  font-size: 11.5px;
+  color: var(--ink-3);
+  border-bottom: 1px solid var(--line);
+}
+.thread-items {
+  max-height: 188px;
+  overflow-y: auto;
+}
+.thread-item {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 12px;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+.thread-item:hover {
+  background: var(--surface-2);
+}
+.thread-item[aria-current='true'] {
+  background: var(--selected);
+  color: var(--ink);
+}
+.thread-item[data-unread='true'] .who {
+  font-weight: 650;
+  color: var(--ink);
+}
+.thread-item .who {
+  flex: 0 0 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.thread-item .what {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-3);
+}
+.thread-item .where,
+.thread-item .when {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  color: var(--ink-3);
+}
+
+.snooze-notice {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 14px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  font-size: 12.5px;
+}
+
+.dialog-small {
+  width: min(400px, 100%);
+}
+
+.compose-schedule {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 22px 0;
+  font-size: 12.5px;
+}
+.compose-schedule .input {
+  width: auto;
+}
+
+.template-body {
+  resize: vertical;
+  min-height: 140px;
+  line-height: 1.45;
+}
+
+.toast-action {
+  margin-left: 14px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 650;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: var(--paper);
+  padding: 10px 16px;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-pop);
+  font-size: 13px;
+  z-index: 80;
+  max-width: 560px;
+}
+
+.status-line {
+  padding: 6px 12px;
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--ink-3);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-2);
+}
+
+.dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.spin {
+  animation: spin 900ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}
+
+.tabs {
+  display: flex;
+  gap: 2px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 18px;
+}
+
+.tab {
+  border: none;
+  background: none;
+  padding: 8px 12px;
+  cursor: pointer;
+  color: var(--ink-3);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  font-size: 13px;
+}
+
+.tab[aria-selected='true'] {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+  font-weight: 550;
+}
+
+.account-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+}
+
+.account-row .spine {
+  width: 3px;
+  align-self: stretch;
+  border-radius: 2px;
+  flex: 0 0 auto;
+}
+
+.account-row .meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.account-row .meta .name {
+  font-weight: 600;
+  font-size: 13.5px;
+}
+
+.account-row .meta .addr {
+  font-size: 12.5px;
+  color: var(--ink-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------- Kontextmenue */
+
+.menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+}
+
+.menu {
+  position: fixed;
+  min-width: 208px;
+  max-width: 320px;
+  padding: 5px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  z-index: 91;
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 6px 9px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.menu-item:hover:not(:disabled),
+.menu-item[aria-expanded='true'] {
+  background: var(--selected);
+}
+
+.menu-item:disabled {
+  color: var(--ink-3);
+  cursor: default;
+}
+
+.menu-item-danger {
+  color: var(--danger);
+}
+
+.menu-icon {
+  width: 16px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+}
+
+.menu-item-danger .menu-icon {
+  color: var(--danger);
+}
+
+.menu-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu-hint,
+.menu-arrow {
+  flex: 0 0 auto;
+  color: var(--ink-3);
+  font-size: 11.5px;
+}
+
+.menu-arrow {
+  display: grid;
+  place-items: center;
+}
+
+.menu-sep {
+  height: 1px;
+  background: var(--line);
+  margin: 4px 6px;
+}
+
+/* Auswahl mehrerer Nachrichten */
+
+.row[data-multi='true'] {
+  background: var(--accent-soft);
+}
+
+.row[data-multi='true'][aria-selected='true'] {
+  background: var(--selected);
+}
+
+.bulk {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 40px;
+}
+
+.bulk-inner {
+  text-align: center;
+  max-width: 420px;
+}
+
+.bulk-count {
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  line-height: 1.1;
+}
+
+.bulk-inner p {
+  margin: 6px 0 20px;
+  color: var(--ink-3);
+  font-size: 13.5px;
+}
+
+.bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+/* ------------------------------------------------------------- Regeln */
+
+.rule-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  flex-wrap: wrap;
+}
+
+.rule-row > input[type='checkbox'] {
+  margin-top: 3px;
+  flex: 0 0 auto;
+}
+
+.rule-row .meta {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+/* Ausgeschaltete Regeln bleiben lesbar, treten aber zurueck. */
+.rule-row[data-enabled='false'] .meta {
+  opacity: 0.55;
+}
+
+.rule-row .name {
+  font-weight: 600;
+}
+
+.rule-row .summary {
+  margin-top: 2px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+.rule-status {
+  margin-top: 4px;
+  font-size: 12.5px;
+  color: var(--success);
+}
+
+.rule-status[data-error='true'] {
+  color: var(--danger);
+}
+
+.rule-buttons {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rule-editor {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  background: var(--surface-2);
+}
+
+.rule-match {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.select-inline {
+  width: auto;
+}
+
+.rule-cond {
+  display: grid;
+  grid-template-columns: 130px 150px minmax(0, 1fr) 32px;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+@media (max-width: 640px) {
+  .rule-cond {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.rule-preview {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.rule-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+/* ------------------------------------------------- Ablegen im Verfassen */
+
+.compose-dialog {
+  position: relative;
+}
+
+/*
+  Liegt ueber dem ganzen Dialog, faengt aber keine Ereignisse ab - sonst
+  meldete das Einblenden selbst ein dragleave, und der Hinweis flackerte.
+*/
+.compose-drop {
+  position: absolute;
+  inset: 8px;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--accent-soft) 90%, transparent);
+  color: var(--accent);
+  font-size: 15px;
+  font-weight: 600;
+  pointer-events: none;
+}
