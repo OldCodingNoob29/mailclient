@@ -92,6 +92,19 @@ select {
   color: inherit;
 }
 
+/* Die Liste einer Auswahl zeichnet Chromium selbst. Ohne color-scheme bekam sie im dunklen
+   Thema einen hellen Grund, erbte aber die helle Schrift: Weiß auf Weiß, lesbar nur beim Überfahren. */
+:root[data-theme='light'] {
+  color-scheme: light;
+}
+:root[data-theme='dark'] {
+  color-scheme: dark;
+}
+option {
+  background-color: var(--surface);
+  color: var(--ink);
+}
+
 :focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
