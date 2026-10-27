@@ -22,13 +22,13 @@ await page.evaluate(() => window.api.accounts.save({
 }))
 await app.close()
 // second run: started with a mailto link
-app = await launch(['mailto:timotheusstotz@gmail.com?subject=Hello%20Tim&body=Saw%20your%20site'])
+app = await launch(['mailto:timotheusstotz@gmail.com?subject=Hello%20Tim&body=Saw%20your%20site%0D%0A%0D%0ASecond%20paragraph'])
 page = await app.firstWindow()
 await page.waitForSelector('.compose-dialog', { timeout: 20000 })
 const got = await page.evaluate(() => ({
   to: document.querySelector('#compose-to')?.value,
   subject: document.querySelector('#compose-subject')?.value,
-  body: document.querySelector('.compose-editor')?.innerText.split('\n')[0]
+  body: document.querySelector('.compose-editor')?.innerText.split('\n').slice(0, 3)
 }))
 console.log(JSON.stringify(got))
 await app.close()

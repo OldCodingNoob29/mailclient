@@ -40,7 +40,7 @@ import { drawBadge } from './lib/badge'
 import { addressList, folderLabel, formatAddressFull, fullDate, shortDateTime } from './lib/format'
 import { addTrustedDomain } from './lib/remote-images'
 import type { MailtoDraft } from '@shared/mailto'
-import { textToHtml } from './lib/sanitize'
+import { textToEditorHtml } from './lib/sanitize'
 import {
   runServerSearch,
   useMessageBody,
@@ -389,7 +389,7 @@ export default function App() {
         bcc: draft.bcc.map((address) => ({ address })),
         subject: draft.subject,
         quotedHtml: '',
-        bodyHtml: draft.body ? textToHtml(draft.body) : undefined
+        bodyHtml: draft.body ? textToEditorHtml(draft.body) : undefined
       })
     },
     [accounts, showToast]
@@ -422,7 +422,7 @@ export default function App() {
         return
       }
 
-      const quoted = buildQuote(message, body?.html ?? (body?.text ? textToHtml(body.text) : ''))
+      const quoted = buildQuote(message, body?.html ?? (body?.text ? textToEditorHtml(body.text) : ''))
       if (mode === 'forward') {
         setCompose({
           mode,

@@ -137,3 +137,9 @@ export function textToHtml(text: string): string {
     (url) => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`
   )
 }
+
+/** Reiner Text fuer den Editor: wie textToHtml, aber Zeilenumbrueche werden zu <br>,
+ *  weil der Editor (contentEditable) sie sonst zu Leerzeichen zusammenzieht. */
+export function textToEditorHtml(text: string): string {
+  return textToHtml(text).replace(/\r?\n/g, '<br>')
+}
