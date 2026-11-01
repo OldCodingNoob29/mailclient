@@ -723,12 +723,18 @@ option {
 .reader-scroll {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
+  overflow: auto;
   overscroll-behavior: contain;
   padding: 20px 24px 40px;
   display: flex;
-  justify-content: center;
+  /* safe: eine vergroesserte Mail darf links nicht aus dem Scrollbereich ragen. */
+  justify-content: safe center;
   align-items: flex-start;
+}
+
+/* Die vergroesserte Mail ragt ueber das Blatt hinaus und bringt ihr eigenes Weiss mit. */
+.sheet[data-zoomed='true'] {
+  overflow: visible;
 }
 
 .sheet {

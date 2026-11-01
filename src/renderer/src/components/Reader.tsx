@@ -198,7 +198,7 @@ export function Reader(props: Props) {
             </div>
           </nav>
         )}
-        <article className="sheet" key={message.id}>
+        <article className="sheet" key={message.id} data-zoomed={props.zoom > 1}>
           <header className="sheet-head">
             <h1 className="sheet-subject">{message.subject}</h1>
             <div className="sheet-from">
@@ -424,6 +424,10 @@ function MailFrame({
 }) {
   const ref = useRef<HTMLIFrameElement>(null)
   const [height, setHeight] = useState(320)
+  /** Breite des Blatts; so breit wird die Mail gesetzt, bevor sie vergroessert wird. */
+  const [baseWidth, setBaseWidth] = useState(0)
+  const baseWidthRef = useRef(0)
+  baseWidthRef.current = baseWidth
 
   // Ueber Referenzen, damit ein Zoomschritt oder ein neuer Rueckruf nicht das
   // ganze Dokument neu bindet - das wuerde die Mail neu aufbauen.
@@ -445,6 +449,21 @@ function MailFrame({
     body.scrollHeight taugt fuer keines von beiden: es zaehlt im eigenen Massstab
     des vergroesserten Elements und meldete bei 70% weiterhin die volle Hoehe.
   */
+  /*
+    Reinzoomen statt umbrechen: die Mail behaelt das Layout der Normalgroesse und
+    wird als Ganzes groesser, damit auch Bilder wachsen - sonst deckelt sie
+    max-width: 100% bei der Blattbreite. Der Rahmen waechst mit, und der
+    Lesebereich scrollt in beide Richtungen. Verkleinern bricht normal um.
+  */
+  const applyZoom = useCallback((doc: Document): void => {
+    if (!doc.body) return
+    const zoom = zoomRef.current
+    doc.body.style.zoom = String(zoom)
+    const fixed = zoom > 1 && baseWidthRef.current > 0
+    doc.body.style.boxSizing = fixed ? 'border-box' : ''
+    doc.body.style.width = fixed ? `${baseWidthRef.current}px` : ''
+  }, [])
+
   const measure = useCallback((): void => {
     const iframe = ref.current
     const doc = iframe?.contentDocument
@@ -488,7 +507,7 @@ function MailFrame({
       release()
       const doc = iframe.contentDocument
       if (!doc?.documentElement) return
-      if (doc.body) doc.body.style.zoom = String(zoomRef.current)
+      applyZoom(doc)
       measure()
       // Rad und Tasten auch im Nachrichtendokument: hat es den Eingabefokus,
       // sieht das Fenster von beidem nichts.
@@ -516,7 +535,17 @@ function MailFrame({
       iframe.removeEventListener('load', bind)
       release()
     }
-  }, [html, measure])
+  }, [applyZoom, html, measure])
+
+  useEffect(() => {
+    const parent = ref.current?.parentElement
+    if (!parent) return
+    const read = (): void => setBaseWidth(parent.clientWidth)
+    read()
+    const observer = new ResizeObserver(read)
+    observer.observe(parent)
+    return () => observer.disconnect()
+  }, [])
 
   // Die Vergroesserung sitzt im Mail-Dokument, damit sie Text und Bilder der
   // Nachricht trifft und sonst nichts. Danach ist die Mail hoeher oder
@@ -524,9 +553,9 @@ function MailFrame({
   useEffect(() => {
     const doc = ref.current?.contentDocument
     if (!doc?.body) return
-    doc.body.style.zoom = String(zoom)
+    applyZoom(doc)
     measure()
-  }, [zoom, html, measure])
+  }, [applyZoom, baseWidth, zoom, html, measure])
 
   return (
     <iframe
@@ -534,7 +563,7 @@ function MailFrame({
       title="Nachrichteninhalt"
       srcDoc={html}
       sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-      style={{ height }}
+      style={{ height, width: zoom > 1 && baseWidth ? Math.ceil(baseWidth * zoom) : undefined }}
     />
   )
 }

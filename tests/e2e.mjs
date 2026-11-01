@@ -199,6 +199,13 @@ async function seed() {
 
   // Eine Mail mit Gmail-Label: dieselbe Nachricht im Posteingang, im Label-Ordner
   // und in den Sichten "Alle Nachrichten" und "Wichtig".
+  // Eine HTML-Mail mit Bild, die breiter ist als das Blatt erlaubt - zum Vergroessern.
+  const pixel = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEBgIApD5fRAAAAABJRU5ErkJggg=='
+  await put('INBOX', mail('galerie@firma.example', TIM, 'Zoom-Test', {
+    date: at(20),
+    html: `<p id="zoom-text">Text zum Vergroessern.</p><img id="zoom-img" src="data:image/png;base64,${pixel}" width="300" height="200">`
+  }), ['\\Seen'])
+
   const meeting = mail(ANNA, TIM, 'Teammeeting', { messageId: '<meeting@test.local>', date: at(45), text: 'Morgen um zehn.' })
   for (const folder of ['INBOX', 'Arbeit', '[Gmail]/All Mail', '[Gmail]/Important']) await put(folder, meeting)
   await put('[Gmail]/All Mail', mail(ANNA, TIM, 'Nur in Alle Nachrichten', { date: at(40) }))
@@ -646,6 +653,51 @@ async function main() {
     const texts = await rowTexts()
     expect(texts.length > 0 && !texts.includes('Bitte um Rueckruf'), `ist:ungelesen liefert Gelesenes: ${texts}`)
     await search('')
+  })
+
+  console.log('Vergroessern')
+  await check('Zoom: Strg+Mausrad vergroessert die Mail, nicht die Oberflaeche', async () => {
+    await rowBySubject('Zoom-Test').click()
+    const frame = page.frameLocator('iframe[title="Nachrichteninhalt"]')
+    await frame.locator('#zoom-img').waitFor()
+    const measure = () =>
+      page.evaluate(() => {
+        const iframe = document.querySelector('iframe[title="Nachrichteninhalt"]')
+        const doc = iframe.contentDocument
+        const scroller = document.querySelector('.reader-scroll')
+        return {
+          ui: document.querySelector('.search').getBoundingClientRect().height,
+          ratio: window.devicePixelRatio,
+          img: doc.getElementById('zoom-img').getBoundingClientRect().width,
+          font: doc.getElementById('zoom-text').getBoundingClientRect().height,
+          iframeW: iframe.getBoundingClientRect().width,
+          overflow: scroller.scrollWidth - scroller.clientWidth,
+          imgLeft: doc.getElementById('zoom-img').getBoundingClientRect().left + iframe.getBoundingClientRect().left
+        }
+      })
+    const before = await measure()
+    const box = await page.locator('iframe[title="Nachrichteninhalt"]').boundingBox()
+    await page.mouse.move(box.x + box.width / 2, box.y + 60)
+    await page.keyboard.down('Control')
+    for (let i = 0; i < 6; i++) {
+      await page.mouse.wheel(0, -100)
+      await sleep(60)
+    }
+    await page.keyboard.up('Control')
+    await sleep(500)
+    const after = await measure()
+    console.log('         vorher', JSON.stringify(before), '\n         nachher', JSON.stringify(after))
+    await sleep(800)
+    await shot('09-zoom')
+    expect(after.ratio === before.ratio && after.ui === before.ui, 'die Oberflaeche wurde mitvergroessert')
+    expect(after.img >= before.img * 1.9, `Bild wuchs nur von ${before.img} auf ${after.img}`)
+    expect(after.font >= before.font * 1.5, `Text wuchs nur von ${before.font} auf ${after.font}`)
+    expect(after.overflow > 0, 'der Lesebereich laesst sich nicht seitlich scrollen')
+    // Zurueckstellen, damit die Groesse nicht in andere Tests wirkt.
+    await page.keyboard.press('Control+0')
+    await sleep(300)
+    const reset = await measure()
+    expect(Math.abs(reset.img - before.img) < 1 && reset.overflow <= 0, `Strg+0 stellt nicht zurueck: ${JSON.stringify(reset)}`)
   })
 
   console.log('Bestehendes')

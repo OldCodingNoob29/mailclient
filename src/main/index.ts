@@ -87,6 +87,31 @@ function createWindow(): BrowserWindow {
     }
   })
 
+  /*
+    Vergroessert wird immer die Nachricht, nie die Oberflaeche - egal wo der
+    Zeiger steht und welches Dokument den Fokus hat. Hier im Main-Prozess, weil
+    nur hier alle Eingaben ankommen, auch die aus dem Nachrichtenrahmen.
+  */
+  const contents = window.webContents
+  void contents.setVisualZoomLevelLimits(1, 1)
+  // Chromium merkt sich eine einmal gesetzte Seitenvergroesserung ueber Neustarts.
+  contents.on('did-finish-load', () => contents.setZoomFactor(1))
+  contents.on('zoom-changed', (_event, direction) => emit('menu:readerZoom', direction))
+  contents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown' || !input.control || input.alt || input.meta) return
+    const step =
+      input.key === '+' || input.key === '=' || input.code === 'NumpadAdd'
+        ? 'in'
+        : input.key === '-' || input.key === '_' || input.code === 'NumpadSubtract'
+          ? 'out'
+          : input.key === '0' || input.code === 'Numpad0'
+            ? 'reset'
+            : null
+    if (!step) return
+    event.preventDefault()
+    emit('menu:readerZoom', step)
+  })
+
   // Beim Autostart bleibt das Fenster unsichtbar; die App arbeitet trotzdem.
   window.once('ready-to-show', () => {
     if (!startHidden) window.show()
@@ -390,12 +415,6 @@ function registerIpc(service: MailService): void {
     }
   })
 
-  /*
-    Strg+Mausrad zoomt nicht von selbst: Electron fuehrt die Geste nicht aus,
-    und ueber dem Nachrichtenrahmen bekaeme das Fenster sie ohnehin nicht zu
-    sehen. Die Oberflaeche meldet sie deshalb selbst hierher.
-    Die Grenzen entsprechen etwa 60% bis 250%.
-  */
   handle('rules:apply', (ruleId: string) => service.applyRule(ruleId))
 
   handle('shell:openExternal', (url: string) => {
